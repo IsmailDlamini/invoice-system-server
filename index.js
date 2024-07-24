@@ -13,11 +13,6 @@ app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 const port = 3000;
 
-// const corsOptions = {
-//   origin: "https://1v4tbgx1-5173.uks1.devtunnels.ms",
-//   optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-// };
-
 app.use(cors());
 
 app.use(session({ secret: "secret", resave: true, saveUninitialized: true }));
@@ -28,6 +23,8 @@ const db = mysql.createConnection({
   password: "Ismail121",
   database: "invoicesys",
 });
+
+const jwt_secret = "thisisthejwttokensecret";
 
 db.connect((err) => {
   if (err) {
@@ -161,8 +158,9 @@ app.post("/api/registerBusiness", (req, res) => {
 
         // Insert into BusinessAddress
         db.query(
-          "INSERT INTO BusinessAddress (StreetAddress, Suburb, City, PostalCode, BuildingName, OfficeNo) VALUES (?, ?, ?, ?, ?, ?)",
+          "INSERT INTO BusinessAddress (BusinessID, StreetAddress, Suburb, City, PostalCode, BuildingName, OfficeNo) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [
+            businessID,
             streetAddress,
             suburb,
             city,
@@ -182,8 +180,8 @@ app.post("/api/registerBusiness", (req, res) => {
 
             // Insert into BankDetails
             db.query(
-              "INSERT INTO BankDetails (BankName, AccountType, AccountNumber) VALUES (?, ?, ?)",
-              [bankName, accountType, accountNumber],
+              "INSERT INTO BankDetails (BusinessID, BankName, AccountType, AccountNumber) VALUES (?, ?, ?, ?)",
+              [businessID, bankName, accountType, accountNumber],
               (err, results) => {
                 if (err) {
                   return db.rollback(() => {
@@ -260,20 +258,31 @@ app.post("/api/login", async (req, res) => {
         console.log(results);
 
         if (results.length > 0) {
-          // Example using bcrypt (uncomment and install bcrypt package)
           const storedHashedPassword = results[0].Password;
           const passwordMatch = await bcrypt.compare(
             password,
             storedHashedPassword
           );
 
-          // For now, checking plaintext password for demonstration
+          console.log("Password Match:", passwordMatch);
+
           if (passwordMatch) {
-            req.session.loggedin = true;
-            req.session.email = email;
-            res
-              .status(200)
-              .json({ success: true, message: "Login was successful" });
+            const token = jwt.sign({ id: results[0].userID }, jwt_secret, {
+              expiresIn: "1h",
+            });
+
+            res.cookie("jwt", token, {
+              httpOnly: true,
+              secure: false,
+              sameSite: "None",
+              maxAge: 3600000,
+            });
+
+            res.status(200).json({
+              success: true,
+              message: "Login was successful",
+              token: token,
+            });
           } else {
             res
               .status(401)

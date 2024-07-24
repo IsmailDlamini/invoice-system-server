@@ -88,3 +88,6 @@ export const login = asyncHandler(async (req, res) => {
     res.send("please enter your email and password");
   }
 });
+
+
+// This code will be used to code the rest of the server
